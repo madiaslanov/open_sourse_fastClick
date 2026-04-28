@@ -1,0 +1,31 @@
+{
+  "id": "figma",
+  "name": "Figma",
+  "shortcuts": [
+    {
+      "action": "Toggle UI",
+      "keys": {
+        "mac": ["Cmd", "\\"],
+        "windows": ["Ctrl", "\\"],
+        "linux": ["Ctrl", "\\"]
+      }
+    },
+    {
+      "action": "Frame Tool",
+      "keys": {
+        "mac": ["F"],
+        "windows": ["F"],
+        "linux": ["F"]
+      }
+    },
+    {
+      "action": "Text Tool",
+      "keys": {
+        "mac": ["T"],
+        "windows": ["T"],
+        "linux": ["T"]
+      }
+    }
+  ]
+}
+

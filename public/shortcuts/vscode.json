@@ -1,0 +1,31 @@
+{
+  "id": "vscode",
+  "name": "VS Code",
+  "shortcuts": [
+    {
+      "action": "Open Command Palette",
+      "keys": {
+        "mac": ["Cmd", "Shift", "P"],
+        "windows": ["Ctrl", "Shift", "P"],
+        "linux": ["Ctrl", "Shift", "P"]
+      }
+    },
+    {
+      "action": "Quick Open",
+      "keys": {
+        "mac": ["Cmd", "P"],
+        "windows": ["Ctrl", "P"],
+        "linux": ["Ctrl", "P"]
+      }
+    },
+    {
+      "action": "Toggle Terminal",
+      "keys": {
+        "mac": ["Ctrl", "`"],
+        "windows": ["Ctrl", "`"],
+        "linux": ["Ctrl", "`"]
+      }
+    }
+  ]
+}
+

@@ -1,0 +1,31 @@
+{
+  "id": "vim",
+  "name": "Vim",
+  "shortcuts": [
+    {
+      "action": "Enter insert mode",
+      "keys": {
+        "mac": ["I"],
+        "windows": ["I"],
+        "linux": ["I"]
+      }
+    },
+    {
+      "action": "Save file",
+      "keys": {
+        "mac": ["Shift", ":", "W", "Enter"],
+        "windows": ["Shift", ":", "W", "Enter"],
+        "linux": ["Shift", ":", "W", "Enter"]
+      }
+    },
+    {
+      "action": "Quit",
+      "keys": {
+        "mac": ["Shift", ":", "Q", "Enter"],
+        "windows": ["Shift", ":", "Q", "Enter"],
+        "linux": ["Shift", ":", "Q", "Enter"]
+      }
+    }
+  ]
+}
+
