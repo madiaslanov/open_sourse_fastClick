@@ -1,5 +1,7 @@
 import type { OS } from '../state/os'
 
+export type Difficulty = 'easy' | 'medium' | 'hard'
+
 export type ShortcutKey = string
 
 export type Shortcut = {

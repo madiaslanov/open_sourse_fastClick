@@ -1,15 +1,27 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { getShortcutPack } from '../lib/shortcutsApi'
-import type { Shortcut, ShortcutPack } from '../lib/types'
+import type { Difficulty, Shortcut, ShortcutPack } from '../lib/types'
 import { eventToCombo, comboEquals, normalizeExpectedKey } from '../lib/keyboard'
 import { shuffle } from '../lib/random'
 import { useOs } from '../state/os'
 import { Panel } from '../ui/Panel'
 import { ProgressBar } from '../ui/ProgressBar'
 import { KeyCap } from '../ui/KeyCap'
+import { DifficultyToggle } from '../ui/DifficultyToggle'
+import { CountdownBar } from '../ui/CountdownBar'
 
 type Hit = 'idle' | 'good' | 'bad'
+
+const DIFFICULTY_KEY = 'fastClick.difficulty'
+const HINT_DURATION = 1500
+const COUNTDOWN_SECONDS = 5
+
+function getInitialDifficulty(): Difficulty {
+  const stored = localStorage.getItem(DIFFICULTY_KEY)
+  if (stored === 'easy' || stored === 'medium' || stored === 'hard') return stored
+  return 'easy'
+}
 
 function keysForOs(s: Shortcut, os: 'mac' | 'windows' | 'linux') {
   return s.keys[os] ?? (os === 'linux' ? s.keys.windows : undefined) ?? s.keys.windows ?? s.keys.mac
@@ -35,8 +47,18 @@ export function TrainPage() {
   const [hit, setHit] = useState<Hit>('idle')
   const [last, setLast] = useState<string[] | null>(null)
 
+  const [difficulty, setDifficultyState] = useState<Difficulty>(getInitialDifficulty)
+  const [showHint, setShowHint] = useState(false)
+  const [countdownKey, setCountdownKey] = useState(0)
+
   const hitTimer = useRef<number | null>(null)
   const advanceTimer = useRef<number | null>(null)
+  const hintTimer = useRef<number | null>(null)
+
+  const setDifficulty = (d: Difficulty) => {
+    setDifficultyState(d)
+    localStorage.setItem(DIFFICULTY_KEY, d)
+  }
 
   useEffect(() => {
     if (!appId) return
@@ -52,6 +74,7 @@ export function TrainPage() {
         setIdx(0)
         setHit('idle')
         setLast(null)
+        setShowHint(false)
       } catch (e) {
         if (!cancelled) setError(e instanceof Error ? e.message : 'Failed to load pack')
       }
@@ -65,6 +88,7 @@ export function TrainPage() {
     return () => {
       if (hitTimer.current) window.clearTimeout(hitTimer.current)
       if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
+      if (hintTimer.current) window.clearTimeout(hintTimer.current)
     }
   }, [])
 
@@ -78,11 +102,31 @@ export function TrainPage() {
   const progress = queue.length > 0 ? idx / queue.length : 0
   const done = queue.length > 0 && idx >= queue.length
 
+  // Reset countdown when idx or difficulty changes
+  useEffect(() => {
+    setCountdownKey((k) => k + 1)
+    setShowHint(false)
+  }, [idx, difficulty])
+
+  const handleExpire = useCallback(() => {
+    // Timer expired in hard mode — treat as error
+    setHit('bad')
+    setShowHint(true)
+
+    if (hintTimer.current) window.clearTimeout(hintTimer.current)
+    hintTimer.current = window.setTimeout(() => {
+      setShowHint(false)
+      setHit('idle')
+      setIdx((i) => i + 1)
+    }, HINT_DURATION)
+  }, [])
+
   useEffect(() => {
     if (!current || !expected) return
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (shouldIgnoreTarget(e.target)) return
+      if (showHint) return // Don't accept input while showing hint
 
       const combo = eventToCombo(e, os)
       if (combo.length === 0) return
@@ -94,22 +138,33 @@ export function TrainPage() {
       const ok = comboEquals(actual, expected)
       if (hitTimer.current) window.clearTimeout(hitTimer.current)
       if (advanceTimer.current) window.clearTimeout(advanceTimer.current)
+      if (hintTimer.current) window.clearTimeout(hintTimer.current)
 
       if (ok) {
         setHit('good')
+        setShowHint(false)
         advanceTimer.current = window.setTimeout(() => {
           setHit('idle')
           setIdx((i) => i + 1)
         }, 280)
       } else {
         setHit('bad')
-        hitTimer.current = window.setTimeout(() => setHit('idle'), 500)
+        if (difficulty === 'easy') {
+          hitTimer.current = window.setTimeout(() => setHit('idle'), 500)
+        } else {
+          // Medium & Hard: show hint for 1.5s
+          setShowHint(true)
+          hintTimer.current = window.setTimeout(() => {
+            setShowHint(false)
+            setHit('idle')
+          }, HINT_DURATION)
+        }
       }
     }
 
     window.addEventListener('keydown', onKeyDown, { passive: false })
     return () => window.removeEventListener('keydown', onKeyDown)
-  }, [current, expected, os])
+  }, [current, expected, os, difficulty, showHint])
 
   const restart = () => {
     if (!pack) return
@@ -117,7 +172,10 @@ export function TrainPage() {
     setIdx(0)
     setHit('idle')
     setLast(null)
+    setShowHint(false)
   }
+
+  const showKeys = difficulty === 'easy' || showHint
 
   return (
     <div className="space-y-6">
@@ -134,11 +192,12 @@ export function TrainPage() {
             {pack?.name ?? 'Loading…'}
           </h1>
           <p className="mt-2 text-sm text-white/60">
-            Press the correct combo. We’ll move forward on a correct hit.
+            Press the correct combo. We'll move forward on a correct hit.
           </p>
         </div>
 
         <div className="flex items-center gap-3">
+          <DifficultyToggle value={difficulty} onChange={setDifficulty} />
           <button
             type="button"
             onClick={restart}
@@ -151,6 +210,13 @@ export function TrainPage() {
 
       <div className="space-y-3">
         <ProgressBar value={done ? 1 : progress} />
+        {difficulty === 'hard' && !done && current && (
+          <CountdownBar
+            key={countdownKey}
+            duration={COUNTDOWN_SECONDS}
+            onExpire={handleExpire}
+          />
+        )}
         <div className="flex items-center justify-between text-xs text-white/45">
           <div>
             {queue.length > 0 ? (
@@ -199,16 +265,26 @@ export function TrainPage() {
             {current?.action ?? '…'}
           </div>
 
-          <div className="mt-6 text-xs text-white/45">Keys</div>
-          {expected ? (
-            <div className="mt-2 flex flex-wrap gap-2">
-              {expected.map((k, i) => (
-                <KeyCap key={`${k}-${i}`} label={k} />
-              ))}
-            </div>
+          {showKeys ? (
+            <>
+              <div className="mt-6 text-xs text-white/45">
+                {showHint ? 'Correct keys' : 'Keys'}
+              </div>
+              {expected ? (
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {expected.map((k, i) => (
+                    <KeyCap key={`${k}-${i}`} label={k} />
+                  ))}
+                </div>
+              ) : (
+                <div className="mt-2 text-sm text-white/60">
+                  This action has no keys for <span className="text-strong">{os}</span>.
+                </div>
+              )}
+            </>
           ) : (
-            <div className="mt-2 text-sm text-white/60">
-              This action has no keys for <span className="text-strong">{os}</span>.
+            <div className="mt-6 text-sm text-white/50 italic">
+              Keys hidden — type the shortcut from memory
             </div>
           )}
 
@@ -222,8 +298,11 @@ export function TrainPage() {
             <div className="rounded-xl bg-black/20 p-4 ring-1 ring-white/10">
               <div className="text-xs text-white/45">Tip</div>
               <div className="mt-2 text-sm text-white/65">
-                Click anywhere and press the combo. We prevent default browser shortcuts while
-                training.
+                {difficulty === 'hard'
+                  ? 'You have 5 seconds per shortcut. Be quick!'
+                  : difficulty === 'medium'
+                    ? 'Keys are hidden. Try to recall from memory.'
+                    : 'Click anywhere and press the combo. We prevent default browser shortcuts while training.'}
               </div>
             </div>
           </div>
@@ -232,4 +311,3 @@ export function TrainPage() {
     </div>
   )
 }
-
